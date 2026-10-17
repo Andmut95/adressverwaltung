@@ -56,7 +56,7 @@ const Pruefung = (() => {
 
   // Gibt [wert, fehler, hinweis] zurück
   function telefon(roh, land = "CH") {
-    let text = s(roh);
+    let text = s(String(roh ?? "").replace(/[​-‏‪-‮⁦-⁩﻿]/g, ""));
     if (!text) return ["", "Nummer fehlt", null];
     if (/[^0-9+()\-./\s]/.test(text)) return [text, "Nur Ziffern, Leerzeichen, + ( ) - / . erlaubt", null];
     if (text.slice(1).includes("+")) return [text, "Das + darf nur am Anfang stehen", null];
