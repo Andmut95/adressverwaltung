@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Adressverwaltung</title>
+  <meta name="theme-color" content="#1f5f8b">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="kopf">
+    <div class="kopf-zeile">
+      <h1>Adressen</h1>
+      <span id="modus" class="modus"></span>
+      <button id="btn-sync" class="knopf leise" type="button" title="Synchronisieren">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 4v6h-6l2.3-2.3A6 6 0 0 0 6 12zm16 0a8 8 0 0 1-13.7 5.6L4 20v-6h6l-2.3 2.3A6 6 0 0 0 18 12z"/></svg>
+        <span>Sync</span>
+      </button>
+    </div>
+    <nav class="reiter" id="reiter">
+      <button type="button" data-ansicht="kontakte" class="aktiv">Kontakte <b id="z-kontakte"></b></button>
+      <button type="button" data-ansicht="pruefung">Prüfung <b id="z-pruefung"></b></button>
+      <button type="button" data-ansicht="papierkorb">Papierkorb <b id="z-papierkorb"></b></button>
+      <button type="button" data-ansicht="konflikte">Konflikte <b id="z-konflikte"></b></button>
+      <button type="button" data-ansicht="protokoll">Protokoll</button>
+    </nav>
+  </header>
+
+  <main class="rahmen">
+    <section class="spalte-liste" id="spalte-liste">
+      <div class="suche" id="suchleiste">
+        <input id="suche" type="search" placeholder="Suchen: Name, Firma, Telefon, E-Mail, Ort" autocomplete="off">
+        <select id="filter-label" aria-label="Label"><option value="">Alle Labels</option></select>
+        <button id="btn-neu" class="knopf haupt" type="button">+ Neu</button>
+      </div>
+      <div id="liste" class="liste" role="list"></div>
+    </section>
+    <section class="spalte-detail" id="spalte-detail" hidden>
+      <div id="detail"></div>
+    </section>
+  </main>
+
+  <div id="meldung" class="meldung" role="status" aria-live="polite" hidden></div>
+
+  <dialog id="dialog" class="dialog">
+    <form method="dialog">
+      <h2 id="dialog-titel"></h2>
+      <div id="dialog-text"></div>
+      <div class="knoepfe">
+        <button value="nein" class="knopf leise" id="dialog-nein">Abbrechen</button>
+        <button value="ja" class="knopf haupt" id="dialog-ja">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="konfig.js"></script>
+  <script src="pruefung.js"></script>
+  <script src="speicher.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
