@@ -151,6 +151,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--akzent); ou
 .protokoll { font-size: 13px; }
 .protokoll .eintrag { cursor: default; display: grid; grid-template-columns: 130px 1fr; }
 
+.fuss { text-align: center; padding: 8px 16px 24px; font-size: 12px; }
+.fuss a { color: var(--text-leise); }
+
 .meldung {
   position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%);
   background: var(--text); color: var(--hg); padding: 10px 16px; border-radius: 10px; z-index: 20;

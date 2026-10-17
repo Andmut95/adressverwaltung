@@ -1,8 +1,8 @@
 // Service Worker: hält die App-Dateien für den Offline-Betrieb bereit.
 // Zuerst Netz (neue Version), bei fehlender Verbindung aus dem Zwischenspeicher.
-const CACHE = "adressen-v1";
+const CACHE = "adressen-v2";
 const DATEIEN = ["./", "index.html", "style.css", "pruefung.js", "speicher.js", "app.js", "konfig.js",
-  "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
+  "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "datenschutz.html"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(DATEIEN)).then(() => self.skipWaiting()));
