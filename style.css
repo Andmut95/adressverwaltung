@@ -70,11 +70,27 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .knopf.dreht svg { animation: drehen 1s linear infinite; }
 @keyframes drehen { to { transform: rotate(360deg); } }
 
-.rahmen { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 16px; padding: 16px; max-width: 1200px; margin: 0 auto; }
+.rahmen { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 16px; padding: 16px; max-width: 1200px; margin: 0 auto; align-items: start; }
 .spalte-liste, .spalte-detail { min-width: 0; }
-.suche { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+/* Detail läuft beim Scrollen der Liste mit und scrollt bei langen Masken selbst */
+.spalte-detail {
+  position: sticky; top: calc(var(--kopf-h, 96px) + 16px);
+  max-height: calc(100vh - var(--kopf-h, 96px) - 32px); overflow-y: auto; overscroll-behavior: contain;
+  border-radius: 10px;
+}
+.suche { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .suche input { flex: 1 1 100%; }
 .suche select { flex: 1; }
+.suche #sortierung { flex: 1 1 160px; }
+.knopf b { font-weight: 600; font-size: 12px; background: var(--akzent); color: var(--akzent-text); border-radius: 9px; padding: 0 6px; }
+.knopf b:empty { display: none; }
+.knopf[aria-expanded="true"] { background: var(--akzent-leicht); border-color: var(--akzent); }
+.filterfeld { flex: 1 1 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px;
+  background: var(--flaeche); border: 1px solid var(--linie); border-radius: 10px; padding: 10px 12px; }
+.filterfeld label { display: grid; gap: 3px; font-size: 12.5px; color: var(--text-leise); }
+.filterfeld select { color: var(--text); }
+.filterfeld .knopf { grid-column: 1 / -1; justify-self: end; }
+.trefferzahl { font-size: 12.5px; color: var(--text-leise); margin: 0 2px 6px; min-height: 1em; }
 input, select, textarea {
   background: var(--flaeche); border: 1px solid var(--linie); border-radius: 8px; padding: 7px 10px;
   min-height: 38px; width: 100%; min-width: 0;
@@ -167,6 +183,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--akzent); ou
 
 @media (max-width: 760px) {
   .rahmen { grid-template-columns: 1fr; padding: 12px 16px; }
+  .spalte-detail { position: static; max-height: none; overflow: visible; }
   .rahmen.detail-offen .spalte-liste { display: none; }
   .rahmen:not(.detail-offen) .spalte-detail { display: none; }
   .zurueck { display: inline-flex; }

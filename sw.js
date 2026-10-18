@@ -1,6 +1,6 @@
 // Service Worker: hält die App-Dateien für den Offline-Betrieb bereit.
 // Zuerst Netz (neue Version), bei fehlender Verbindung aus dem Zwischenspeicher.
-const CACHE = "adressen-v2";
+const CACHE = "adressen-v3";
 const DATEIEN = ["./", "index.html", "style.css", "pruefung.js", "speicher.js", "app.js", "konfig.js",
   "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "datenschutz.html"];
 

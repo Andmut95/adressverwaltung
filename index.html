@@ -33,9 +33,43 @@
     <section class="spalte-liste" id="spalte-liste">
       <div class="suche" id="suchleiste">
         <input id="suche" type="search" placeholder="Suchen: Name, Firma, Telefon, E-Mail, Ort" autocomplete="off">
-        <select id="filter-label" aria-label="Label"><option value="">Alle Labels</option></select>
+        <select id="sortierung" aria-label="Sortierung">
+          <option value="name">Sortieren: Name</option>
+          <option value="nachname">Sortieren: Nachname</option>
+          <option value="firma">Sortieren: Firma</option>
+          <option value="ort">Sortieren: Ort</option>
+          <option value="geaendert">Sortieren: Zuletzt geändert</option>
+          <option value="erstellt">Sortieren: Zuletzt erfasst</option>
+          <option value="geburtstag">Sortieren: Nächster Geburtstag</option>
+        </select>
+        <button id="btn-filter" class="knopf" type="button" aria-expanded="false">Filter <b id="z-filter"></b></button>
         <button id="btn-neu" class="knopf haupt" type="button">+ Neu</button>
+        <div id="filterfeld" class="filterfeld" hidden>
+          <label>Label <select id="filter-label"><option value="">Alle</option></select></label>
+          <label>Land <select id="filter-land"><option value="">Alle</option></select></label>
+          <label>Angaben <select id="filter-merkmal">
+            <option value="">Alle</option>
+            <option value="tel">mit Telefon</option>
+            <option value="ohne-tel">ohne Telefon</option>
+            <option value="mail">mit E-Mail</option>
+            <option value="ohne-mail">ohne E-Mail</option>
+            <option value="adr">mit Adresse</option>
+            <option value="ohne-adr">ohne Adresse</option>
+            <option value="gb">mit Geburtstag</option>
+            <option value="firma">mit Firma</option>
+            <option value="fehler">mit Fehlern (Prüfung)</option>
+          </select></label>
+          <label>Geändert <select id="filter-zeit">
+            <option value="">jederzeit</option>
+            <option value="1">heute</option>
+            <option value="7">letzte 7 Tage</option>
+            <option value="30">letzte 30 Tage</option>
+            <option value="365">letztes Jahr</option>
+          </select></label>
+          <button id="btn-filter-weg" class="knopf leise" type="button">Zurücksetzen</button>
+        </div>
       </div>
+      <div id="trefferzahl" class="trefferzahl" aria-live="polite"></div>
       <div id="liste" class="liste" role="list"></div>
     </section>
     <section class="spalte-detail" id="spalte-detail" hidden>

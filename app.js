@@ -4,8 +4,20 @@
 const Z = {
   speicher: null, status: null, ansicht: "kontakte",
   kontakte: [], papierkorb: [], pruefung: [], konflikte: [],
-  gewaehlt: null, maske: null, suche: "", label: "",
+  gewaehlt: null, maske: null, suche: "",
+  sortierung: "name", filter: { label: "", land: "", merkmal: "", zeit: "" },
 };
+
+// Sortierung und Filter pro Gerät merken (nur Bequemlichkeit, darf fehlen)
+function ansichtMerken() {
+  try { localStorage.setItem("adressen-ansicht", JSON.stringify({ sortierung: Z.sortierung, filter: Z.filter })); } catch (e) { /* egal */ }
+}
+function ansichtLaden() {
+  try {
+    const a = JSON.parse(localStorage.getItem("adressen-ansicht") || "null");
+    if (a) { Z.sortierung = a.sortierung || "name"; Object.assign(Z.filter, a.filter || {}); }
+  } catch (e) { /* egal */ }
+}
 
 // --- Hilfen ---------------------------------------------------------------
 
@@ -112,11 +124,15 @@ async function laden() {
   $("z-konflikte").textContent = Z.konflikte.length || "";
   const labels = [...new Set(Z.kontakte.flatMap((k) => k.labels || []))].sort((a, b) => a.localeCompare(b, "de"));
   Z.alleLabels = labels;
-  const sel = $("filter-label");
-  sel.replaceChildren(el("option", { value: "", text: "Alle Labels" }),
+  $("filter-label").replaceChildren(el("option", { value: "", text: "Alle" }),
     el("option", { value: "*fav", text: "★ Favoriten" }),
+    el("option", { value: "*ohne", text: "ohne Label" }),
     ...labels.map((l) => el("option", { value: l, text: l })));
-  sel.value = Z.label;
+  const laender = [...new Set(Z.kontakte.flatMap((k) => (k.adressen || []).map((a) => a.land)).filter(Boolean))]
+    .map((c) => [c, Pruefung.LAENDER[c] || c]).sort((a, b) => a[1].localeCompare(b[1], "de"));
+  $("filter-land").replaceChildren(el("option", { value: "", text: "Alle" }),
+    ...laender.map(([c, n]) => el("option", { value: c, text: n })));
+  zeigeFilterWerte();
   zeigeAnsicht();
 }
 
@@ -126,6 +142,7 @@ function setzeReiter(ansicht) {
   Z.ansicht = ansicht;
   for (const b of $("reiter").children) b.classList.toggle("aktiv", b.dataset.ansicht === ansicht);
   $("suchleiste").hidden = !["kontakte", "papierkorb"].includes(ansicht);
+  $("trefferzahl").hidden = $("suchleiste").hidden;
   $("btn-neu").hidden = ansicht !== "kontakte";
   schliesseDetail();
   zeigeAnsicht();
@@ -137,34 +154,153 @@ function zeigeAnsicht() {
   fn();
 }
 
+// --- Sortieren und Filtern ---------------------------------------------------
+
+const vergleich = (a, b) => (a || "").trim().localeCompare((b || "").trim(), "de", { sensitivity: "base" });
+const ersterOrt = (k) => ((k.adressen || []).find((a) => a.ort) || {}).ort || "";
+const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+
+function tageBisGeburtstag(k) {
+  const m = (k.geburtstag || "").match(/(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const heute = new Date(); heute.setHours(0, 0, 0, 0);
+  let n = new Date(heute.getFullYear(), +m[1] - 1, +m[2]);
+  if (n < heute) n = new Date(heute.getFullYear() + 1, +m[1] - 1, +m[2]);
+  return Math.round((n - heute) / 86400000);
+}
+
+function alterBeiGeburtstag(k) {
+  const m = (k.geburtstag || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const naechster = new Date(Date.now() + tageBisGeburtstag(k) * 86400000);
+  return naechster.getFullYear() - +m[1];
+}
+
+function buchstabe(text) {
+  const b = (text || "").trim().charAt(0).toUpperCase();
+  return /\p{L}/u.test(b) ? b.normalize("NFD")[0] : "#";
+}
+
+const monatJahr = (iso) => { const d = new Date(iso); return isNaN(d) ? "unbekannt" : `${MONATE[d.getMonth()]} ${d.getFullYear()}`; };
+const nachName = (a, b) => vergleich(Pruefung.anzeigename(a), Pruefung.anzeigename(b));
+
+// Je Sortierung: Reihenfolge, Gruppenüberschrift, optional Name und Zusatzzeile
+const SORTIERUNGEN = {
+  name: { sort: nachName, gruppe: (k) => buchstabe(Pruefung.anzeigename(k)) },
+  nachname: {
+    sort: (a, b) => vergleich(a.nachname || a.firma || a.vorname, b.nachname || b.firma || b.vorname) || vergleich(a.vorname, b.vorname),
+    gruppe: (k) => buchstabe(k.nachname || k.firma || k.vorname),
+    name: (k) => [k.nachname, k.vorname].filter(Boolean).join(", ") || k.firma || "(ohne Namen)",
+  },
+  firma: {
+    sort: (a, b) => (!a.firma - !b.firma) || vergleich(a.firma, b.firma) || nachName(a, b),
+    gruppe: (k) => (k.firma || "").trim() || "ohne Firma",
+    unter: (k) => [k.funktion, ((k.telefone || [])[0] || {}).nummer].filter(Boolean).join(" · "),
+  },
+  ort: {
+    sort: (a, b) => (!ersterOrt(a) - !ersterOrt(b)) || vergleich(ersterOrt(a), ersterOrt(b)) || nachName(a, b),
+    gruppe: (k) => ersterOrt(k) || "ohne Ort",
+    unter: (k) => {
+      const a = (k.adressen || []).find((x) => x.ort) || {};
+      return [a.strasse, [a.plz, a.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || unterzeile(k);
+    },
+  },
+  geaendert: {
+    sort: (a, b) => (b.geaendert || "").localeCompare(a.geaendert || ""),
+    gruppe: (k) => monatJahr(k.geaendert),
+    unter: (k) => `geändert ${zeitText(k.geaendert)}${k.quelle ? ` (${k.quelle})` : ""}`,
+  },
+  erstellt: {
+    sort: (a, b) => (b.erstellt || "").localeCompare(a.erstellt || ""),
+    gruppe: (k) => monatJahr(k.erstellt),
+    unter: (k) => `erfasst ${zeitText(k.erstellt)}`,
+  },
+  geburtstag: {
+    sort: (a, b) => {
+      const x = tageBisGeburtstag(a), y = tageBisGeburtstag(b);
+      return ((x === null) - (y === null)) || ((x || 0) - (y || 0)) || nachName(a, b);
+    },
+    gruppe: (k) => { const m = (k.geburtstag || "").match(/(\d{2})-\d{2}$/); return m ? MONATE[+m[1] - 1] : "ohne Geburtstag"; },
+    unter: (k) => {
+      const t = tageBisGeburtstag(k);
+      if (t === null) return unterzeile(k);
+      const alter = alterBeiGeburtstag(k);
+      const wann = t === 0 ? "heute" : t === 1 ? "morgen" : `in ${t} Tagen`;
+      return `${geburtstagText(k.geburtstag)} · ${wann}${alter ? `, wird ${alter}` : ""}`;
+    },
+  },
+};
+
+const aktiveFilter = () => Object.values(Z.filter).filter(Boolean).length;
+
+function passtZumFilter(k, fehlerIds) {
+  const f = Z.filter;
+  if (f.label === "*fav" && !k.favorit) return false;
+  if (f.label === "*ohne" && (k.labels || []).length) return false;
+  if (f.label && !f.label.startsWith("*") && !(k.labels || []).includes(f.label)) return false;
+  if (f.land && !(k.adressen || []).some((a) => a.land === f.land)) return false;
+  const hat = { tel: (k.telefone || []).length, mail: (k.emails || []).length, adr: (k.adressen || []).length };
+  switch (f.merkmal) {
+    case "tel": case "mail": case "adr": if (!hat[f.merkmal]) return false; break;
+    case "ohne-tel": case "ohne-mail": case "ohne-adr": if (hat[f.merkmal.slice(5)]) return false; break;
+    case "gb": if (!k.geburtstag) return false; break;
+    case "firma": if (!k.firma) return false; break;
+    case "fehler": if (!fehlerIds.has(k.id)) return false; break;
+  }
+  if (f.zeit) {
+    const grenze = new Date();
+    if (f.zeit === "1") grenze.setHours(0, 0, 0, 0);
+    else grenze.setTime(Date.now() - +f.zeit * 86400000);
+    if (!(new Date(k.geaendert) >= grenze)) return false;
+  }
+  return true;
+}
+
+function zeigeFilterWerte() {
+  $("sortierung").value = Z.sortierung;
+  if ($("sortierung").value !== Z.sortierung) { Z.sortierung = "name"; $("sortierung").value = "name"; }
+  for (const [feld, wert] of Object.entries(Z.filter)) {
+    const sel = $("filter-" + feld);
+    sel.value = wert;
+    if (sel.value !== wert) { Z.filter[feld] = ""; sel.value = ""; }
+  }
+  $("z-filter").textContent = aktiveFilter() || "";
+}
+
 function zeigeListe() {
   const papier = Z.ansicht === "papierkorb";
-  let liste = (papier ? Z.papierkorb : Z.kontakte).filter((k) => passtZurSuche(k, Z.suche));
-  if (Z.label === "*fav") liste = liste.filter((k) => k.favorit);
-  else if (Z.label) liste = liste.filter((k) => (k.labels || []).includes(Z.label));
   const fehlerIds = new Set(Z.pruefung.filter((p) => p.fehler.length).map((p) => p.id));
+  const basis = papier ? Z.papierkorb : Z.kontakte;
+  const art = SORTIERUNGEN[Z.sortierung] || SORTIERUNGEN.name;
+  const liste = basis.filter((k) => passtZurSuche(k, Z.suche) && passtZumFilter(k, fehlerIds)).sort(art.sort);
+  const wort = papier ? "im Papierkorb" : "Kontakte";
+  $("trefferzahl").textContent = liste.length === basis.length ? `${basis.length} ${wort}`
+    : `${liste.length} von ${basis.length} ${papier ? "im Papierkorb" : "Kontakten"}`;
   const box = $("liste");
   box.replaceChildren();
   if (!liste.length) {
-    box.append(el("div", { class: "leer", text: papier ? "Der Papierkorb ist leer." : "Keine Kontakte gefunden." }));
+    box.append(el("div", { class: "leer", text: papier && !basis.length ? "Der Papierkorb ist leer." : "Keine Kontakte gefunden." }));
     return;
   }
-  let buchstabe = null;
+  let gruppeVorher = null;
   for (const k of liste) {
-    const b = Pruefung.anzeigename(k)[0].toUpperCase();
-    const gruppe = /\p{L}/u.test(b) ? b.normalize("NFD")[0] : "#";
-    if (!papier && gruppe !== buchstabe) { buchstabe = gruppe; box.append(el("div", { class: "buchstabe", text: gruppe })); }
+    const gruppe = art.gruppe(k);
+    if (gruppe !== gruppeVorher) { gruppeVorher = gruppe; box.append(el("div", { class: "buchstabe", text: gruppe })); }
     box.append(el("div", {
       class: "eintrag" + (Z.gewaehlt && Z.gewaehlt.id === k.id ? " gewaehlt" : ""), role: "listitem", tabindex: "0",
+      "data-id": k.id,
       onclick: () => zeigeDetail(k), onkeydown: (e) => e.key === "Enter" && zeigeDetail(k),
     },
       el("div", { class: "avatar", text: initialen(k) }),
       el("div", { class: "text" },
-        el("div", { class: "name", text: (k.favorit ? "★ " : "") + Pruefung.anzeigename(k) }),
-        el("div", { class: "unter", text: papier ? `gelöscht ${zeitText(k.geloescht)}` : unterzeile(k) })),
+        el("div", { class: "name", text: (k.favorit ? "★ " : "") + (art.name ? art.name(k) : Pruefung.anzeigename(k)) }),
+        el("div", { class: "unter", text: papier ? `gelöscht ${zeitText(k.geloescht)}` : (art.unter ? art.unter(k) : unterzeile(k)) })),
       k.lokal ? el("span", { class: "marke lokal", text: "lokal" }) : null,
       fehlerIds.has(k.id) ? el("span", { class: "marke fehler", text: "prüfen" }) : null));
   }
+  // Gewählten Kontakt nach dem Neuzeichnen sichtbar halten (z. B. nach dem Speichern)
+  const gewaehlt = Z.gewaehlt && box.querySelector(`[data-id="${Z.gewaehlt.id}"]`);
+  if (gewaehlt && !schmal()) gewaehlt.scrollIntoView({ block: "nearest" });
 }
 
 function zeigePruefung() {
@@ -236,17 +372,28 @@ async function zeigeProtokoll() {
 
 // --- Detail -----------------------------------------------------------------
 
+const schmal = () => window.matchMedia("(max-width: 760px)").matches;
+
 function oeffneDetail(inhalt) {
+  const rahmen = document.querySelector(".rahmen");
+  // Auf dem Handy ersetzt das Detail die Liste: Scrollposition merken für «Zurück»
+  if (schmal() && !rahmen.classList.contains("detail-offen")) Z.listenPosition = window.scrollY;
   $("detail").replaceChildren(inhalt);
   $("spalte-detail").hidden = false;
-  document.querySelector(".rahmen").classList.add("detail-offen");
-  if (window.matchMedia("(max-width: 760px)").matches) window.scrollTo(0, 0);
+  $("spalte-detail").scrollTop = 0;
+  rahmen.classList.add("detail-offen");
+  if (schmal()) window.scrollTo(0, 0);
 }
 function schliesseDetail() {
   Z.gewaehlt = null; Z.maske = null;
+  const warOffen = document.querySelector(".rahmen").classList.contains("detail-offen");
   $("spalte-detail").hidden = true;
   document.querySelector(".rahmen").classList.remove("detail-offen");
   $("liste").classList.remove("protokoll");
+  if (warOffen && schmal() && Z.listenPosition !== undefined) {
+    const y = Z.listenPosition;
+    requestAnimationFrame(() => window.scrollTo(0, y));
+  }
 }
 const zurueckKnopf = () => el("button", { class: "knopf leise zurueck", type: "button", text: "← Zurück",
   onclick: async () => { if (await maskeVerlassen()) { schliesseDetail(); zeigeAnsicht(); } } });
@@ -569,13 +716,33 @@ async function sync() {
 // --- Start ------------------------------------------------------------------
 
 async function start() {
+  ansichtLaden();
   Z.speicher = await waehleSpeicher();
   $("reiter").addEventListener("click", async (e) => {
     const b = e.target.closest("button[data-ansicht]");
     if (b && (await maskeVerlassen())) setzeReiter(b.dataset.ansicht);
   });
   $("suche").addEventListener("input", (e) => { Z.suche = e.target.value.trim(); zeigeListe(); });
-  $("filter-label").addEventListener("change", (e) => { Z.label = e.target.value; zeigeListe(); });
+  $("sortierung").addEventListener("change", (e) => { Z.sortierung = e.target.value; ansichtMerken(); zeigeListe(); });
+  for (const feld of Object.keys(Z.filter)) {
+    $("filter-" + feld).addEventListener("change", (e) => {
+      Z.filter[feld] = e.target.value; ansichtMerken(); zeigeFilterWerte(); zeigeListe();
+    });
+  }
+  $("btn-filter").addEventListener("click", () => {
+    const offen = $("filterfeld").hidden;
+    $("filterfeld").hidden = !offen;
+    $("btn-filter").setAttribute("aria-expanded", String(offen));
+  });
+  $("btn-filter-weg").addEventListener("click", () => {
+    for (const feld of Object.keys(Z.filter)) Z.filter[feld] = "";
+    ansichtMerken(); zeigeFilterWerte(); zeigeListe();
+  });
+  // Höhe des Kopfbereichs für die mitlaufende Detailspalte
+  const kopf = document.querySelector(".kopf");
+  const kopfHoehe = () => document.documentElement.style.setProperty("--kopf-h", kopf.offsetHeight + "px");
+  kopfHoehe();
+  if (window.ResizeObserver) new ResizeObserver(kopfHoehe).observe(kopf);
   $("btn-neu").addEventListener("click", async () => { if (await maskeVerlassen()) zeigeMaske(null); });
   $("btn-sync").addEventListener("click", sync);
   window.addEventListener("beforeunload", (e) => { if (Z.maske && Z.maske.geaendert) e.preventDefault(); });
